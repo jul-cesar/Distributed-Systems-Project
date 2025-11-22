@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: interna        # ← la BD vive dentro de la red privada
+spec:
+  replicas: 1               # ← una sola instancia por ahora
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      nodeSelector:
+        zona: interna       # ← forzar que esté en el nodo interno
+      containers:
+        - name: postgres
+          image: postgres:15  # ← compatible con Spree
+          ports:
+            - containerPort: 5432
+          env:               # ← variables necesarias para que postgres arranque
+            - name: POSTGRES_USER
+              value: spreeuser
+            - name: POSTGRES_PASSWORD
+              value: spreepass
+            - name: POSTGRES_DB
+              value: spreedb

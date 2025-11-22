@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spree-backend
+  namespace: interna
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spree-backend
+  template:
+    metadata:
+      labels:
+        app: spree-backend
+    spec:
+      nodeSelector:
+        zona: interna
+      containers:
+        - name: spree
+          image: spreecommerce/spree:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: "postgres://spreeuser:spreepass@postgres.interna.svc.cluster.local:5432/spreedb"
+            - name: REDIS_URL
+              value: "redis://redis.interna.svc.cluster.local:6379/0"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: spree-secret
+                  key: SECRET_KEY_BASE
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 90
+            periodSeconds: 20
