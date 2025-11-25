@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-master
+  namespace: interna
+spec:
+  serviceName: postgres-master
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: master
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: master
+    spec:
+      nodeSelector:
+        zona: interna
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: spreeuser
+            - name: POSTGRES_PASSWORD
+              value: spreepass
+            - name: POSTGRES_DB
+              value: spreedb
+            - name: POSTGRES_INITDB_ARGS
+              value: "--encoding=UTF8 --locale=en_US.UTF-8"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-config
+              mountPath: /etc/postgresql
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    # Esperar a que PostgreSQL esté listo
+                    until pg_isready -U spreeuser; do sleep 2; done
+
+                    # Crear usuario de replicación
+                    psql -U spreeuser -d spreedb -c "CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'replicator123';" || true
+
+                    # Configurar pg_hba.conf para replicación
+                    echo "host replication replicator 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+                    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+
+                    # Configurar postgresql.conf para replicación
+                    echo "wal_level = replica" >> /var/lib/postgresql/data/postgresql.conf
+                    echo "max_wal_senders = 3" >> /var/lib/postgresql/data/postgresql.conf
+                    echo "max_replication_slots = 3" >> /var/lib/postgresql/data/postgresql.conf
+                    echo "hot_standby = on" >> /var/lib/postgresql/data/postgresql.conf
+                    echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
+
+                    # Recargar configuración
+                    psql -U spreeuser -d spreedb -c "SELECT pg_reload_conf();"
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - spreeuser
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - spreeuser
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: postgres-config
+          configMap:
+            name: postgres-config
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

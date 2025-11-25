@@ -4,7 +4,7 @@ metadata:
   name: spree-backend
   namespace: interna
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: spree-backend
@@ -17,7 +17,8 @@ spec:
         zona: interna
       containers:
         - name: spree
-          image: spreecommerce/spree:latest
+          image: spree-custom:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
           env:
@@ -32,15 +33,30 @@ spec:
                 secretKeyRef:
                   name: spree-secret
                   key: SECRET_KEY_BASE
+            # IMPORTANTE: Configuración para que Rails funcione detrás de proxy
+            - name: RAILS_SERVE_STATIC_FILES
+              value: "true"
+            - name: RAILS_LOG_TO_STDOUT
+              value: "true"
+            # Permitir hosts (importante para evitar errores de host bloqueado)
+            - name: TRUSTED_HOSTS
+              value: "www.proyectosd.com,spree-frontend.dmz.svc.cluster.local,localhost,localhost:30080"
+            # URL pública para assets y URLs generadas
+            - name: SPREE_FRONTEND_URL
+              value: "http://localhost:30080"
           readinessProbe:
             httpGet:
-              path: /
+              path: /up
               port: 3000
             initialDelaySeconds: 60
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /
+              path: /up
               port: 3000
             initialDelaySeconds: 90
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3

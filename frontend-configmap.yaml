@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spree-frontend-config
+  namespace: dmz
+data:
+  default.conf: |
+    upstream backend {
+      server spree-backend.interna.svc.cluster.local:3000;
+      keepalive 32;
+    }
+
+    server {
+      listen 80;
+      server_name www.proyectosd.com localhost;
+      
+      # Configurar puerto real para NodePort
+      set $forwarded_port 30080;
+      if ($http_host ~ ":(\d+)$") {
+        set $forwarded_port $1;
+      }
+
+      # Aumentar timeouts para admin panel
+      proxy_connect_timeout 300s;
+      proxy_send_timeout 300s;
+      proxy_read_timeout 300s;
+      send_timeout 300s;
+
+      # Aumentar tamaños para uploads
+      client_max_body_size 50M;
+
+      # Logs
+      access_log /var/log/nginx/access.log;
+      error_log /var/log/nginx/error.log;
+
+      # Proxy para todas las rutas
+      location / {
+        proxy_pass http://backend;
+        
+        # Headers esenciales para Rails/Spree
+        proxy_set_header Host $host:$forwarded_port;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host:$forwarded_port;
+        proxy_set_header X-Forwarded-Port $forwarded_port;
+        
+        # IMPORTANTE: Preservar cookies para sesiones
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+        
+        # Mantener conexión
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        
+        # No cachear respuestas dinámicas
+        proxy_no_cache 1;
+        proxy_cache_bypass 1;
+      }
+
+      # Ruta específica para admin (importante para Spree)
+      location /admin {
+        proxy_pass http://backend;
+        
+        proxy_set_header Host $host:$forwarded_port;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host:$forwarded_port;
+        proxy_set_header X-Forwarded-Port $forwarded_port;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+        
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        
+        # Timeouts más largos para admin
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+      }
+
+      # Ruta para API Storefront
+      location /api {
+        proxy_pass http://backend;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Headers API
+        proxy_set_header Accept application/json;
+        proxy_set_header Content-Type application/json;
+        
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+      }
+
+      # Health check
+      location /up {
+        proxy_pass http://backend;
+        access_log off;
+      }
+    }

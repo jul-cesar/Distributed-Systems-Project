@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: interna
+data:
+  # Configuración para PostgreSQL Master
+  master.conf: |
+    # Habilitar replicación
+    wal_level = replica
+    max_wal_senders = 3
+    max_replication_slots = 3
+    hot_standby = on
+
+    # Configuración de red
+    listen_addresses = '*'
+
+  # Configuración para PostgreSQL Slave
+  slave.conf: |
+    # Modo hot standby (solo lectura)
+    hot_standby = on
+
+  # Script de inicialización para replicación
+  setup-replication.sh: |
+    #!/bin/bash
+    set -e
+
+    # Configurar pg_hba.conf para permitir replicación
+    echo "host replication replicator 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+
+    # Reiniciar postgres para aplicar cambios
+    pg_ctl reload -D /var/lib/postgresql/data

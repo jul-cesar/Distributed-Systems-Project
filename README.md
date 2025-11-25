@@ -1,0 +1,365 @@
+# 🚀 Proyecto Sistemas Distribuidos - Spree Commerce en K8s
+
+Plataforma e-commerce completa desplegada en Kubernetes multinodo con arquitectura distribuida y segmentación de red.
+
+## 📋 Descripción del Proyecto
+
+Sistema distribuido que implementa:
+- ✅ **Kubernetes multinodo** (3 nodos)
+- ✅ **2 Namespaces**: `dmz` (público) e `interna` (privado)
+- ✅ **Network Policies** para seguridad entre namespaces
+- ✅ **Spree Commerce** como backend (Rails)
+- ✅ **Nginx** como frontend/proxy reverso
+- ✅ **PostgreSQL** para persistencia
+- ✅ **Redis** para cache y jobs
+- ✅ **Node Labels** para placement específico
+
+## 🏗️ Arquitectura
+
+```
+Internet → NodePort (30080)
+    ↓
+[Namespace DMZ]
+    Nginx (Frontend) → proxy_pass
+         ↓
+[Namespace INTERNA]
+    Rails Backend (Spree)
+         ↓
+    PostgreSQL + Redis
+```
+
+Para diagrama completo ver: **[ARQUITECTURA.md](./ARQUITECTURA.md)**
+
+## 🔧 Solución al Problema de Conectividad
+
+**PROBLEMA**: Frontend abre pero no permite acceder al admin ni se ven productos.
+
+**CAUSA**: 
+1. Nginx sin headers correctos para Rails
+2. Network Policy sin egress desde dmz
+3. Rails bloqueando hosts no confiables
+4. Sesiones no persistentes
+
+**SOLUCIÓN APLICADA**:
+- ✅ ConfigMap de Nginx actualizado con headers necesarios
+- ✅ Network Policy para permitir egress desde dmz
+- ✅ Variables de entorno en backend para trusted hosts
+- ✅ Configuración de preservación de cookies
+
+Ver guía completa: **[SOLUCION-TROUBLESHOOTING.md](./SOLUCION-TROUBLESHOOTING.md)**
+
+## ⚡ Quick Start
+
+### 1. Aplicar Correcciones
+```powershell
+.\aplicar-correcciones.ps1
+```
+
+Este script:
+- Reconstruye la imagen Docker
+- Aplica ConfigMaps actualizados
+- Actualiza Network Policies
+- Reinicia los pods
+- Muestra el estado final
+
+### 2. Configurar Admin y Productos ⭐ IMPORTANTE
+```powershell
+.\admin-setup.ps1
+```
+
+Menú interactivo para:
+- Crear usuario admin
+- Listar productos
+- **Hacer productos visibles** (activa status: 'active') ← **NECESARIO**
+- Crear productos de prueba
+- Ver estadísticas de BD
+
+> 💡 **NOTA**: Los productos creados manualmente quedan en estado "draft" y no son visibles.  
+> **Debes ejecutar la opción 3** del script para activarlos.  
+> Ver: **[PRODUCTOS-NO-VISIBLES-FIX.md](./PRODUCTOS-NO-VISIBLES-FIX.md)**
+- Crear usuario admin
+- Listar productos
+- Hacer productos visibles
+- Crear productos de prueba
+- Ver estadísticas de BD
+
+### 3. Diagnóstico (si hay problemas)
+```powershell
+.\diagnostico.ps1
+```
+
+Muestra:
+- Estado de todos los recursos
+- Logs recientes
+- Tests de conectividad
+- Resolución DNS
+
+## 🌐 Acceso a la Aplicación
+
+Una vez aplicadas las correcciones:
+
+| URL | Descripción |
+|-----|-------------|
+| http://localhost:30080 | 🏪 Storefront |
+| http://localhost:30080/admin | 👤 Panel Admin |
+| http://localhost:30080/api/v2 | 🔌 API |
+| http://localhost:30080/sidekiq | 📊 Monitor Jobs |
+
+## 📁 Estructura del Proyecto
+
+```
+distributed-systems-project/
+├── spree-app/                    # Aplicación Rails (Spree)
+│   ├── app/                      # Controllers, models, views
+│   ├── config/                   # Configuración Rails
+│   │   └── initializers/
+│   │       └── hosts.rb         # ⭐ Nuevo: Trusted hosts
+│   ├── Dockerfile               # Build de la imagen
+│   └── ...
+│
+├── Deployments K8s
+│   ├── db-deploy.yaml           # PostgreSQL deployment
+│   ├── db-service.yaml          # PostgreSQL service
+│   ├── redis-deploy.yaml        # Redis deployment
+│   ├── redis-service.yaml       # Redis service
+│   ├── spree-backend-deploy.yaml   # ⭐ Backend Rails (actualizado)
+│   ├── spree-backend-service.yaml  # Backend service
+│   ├── frontend-deploy.yaml     # Nginx deployment
+│   ├── frontend-service.yaml    # Frontend NodePort
+│   ├── frontend-configmap.yaml  # ⭐ Nginx config (actualizado)
+│   └── spree-migrate-job.yaml   # Job de migraciones
+│
+├── Network Policies
+│   ├── np-interna-default-deny.yaml           # Deny all ingress
+│   ├── np-allow-backend-to-db-redis.yaml      # Backend → DB/Redis
+│   └── np-allow-dmz-to-backend.yaml          # ⭐ DMZ ↔ Backend (actualizado)
+│
+├── Scripts PowerShell
+│   ├── aplicar-correcciones.ps1   # ⭐ Script principal
+│   ├── admin-setup.ps1            # ⭐ Setup admin/productos
+│   └── diagnostico.ps1            # ⭐ Diagnóstico completo
+│
+└── Documentación
+    ├── README.md                   # Este archivo
+    ├── SOLUCION-TROUBLESHOOTING.md # ⭐ Guía de solución
+    └── ARQUITECTURA.md             # ⭐ Documentación técnica
+```
+
+## 🔐 Credenciales por Defecto
+
+### Base de Datos
+- **Host**: `postgres.interna.svc.cluster.local:5432`
+- **Database**: `spreedb`
+- **Usuario**: `spreeuser`
+- **Password**: `spreepass`
+
+### Admin de Spree (crear con admin-setup.ps1)
+- **Email**: `admin@example.com`
+- **Password**: `password123`
+
+⚠️ **IMPORTANTE**: Cambiar en producción real.
+
+## 📊 Comandos Útiles
+
+### Ver estado general
+```powershell
+kubectl get all -n dmz
+kubectl get all -n interna
+```
+
+### Ver logs
+```powershell
+# Frontend
+kubectl logs -n dmz -l app=spree-frontend --tail=50 -f
+
+# Backend
+kubectl logs -n interna -l app=spree-backend --tail=50 -f
+```
+
+### Consola Rails
+```powershell
+kubectl exec -it -n interna deployment/spree-backend -- bin/rails console
+```
+
+### Reiniciar servicios
+```powershell
+kubectl rollout restart deployment spree-backend -n interna
+kubectl rollout restart deployment spree-frontend -n dmz
+```
+
+### Verificar Network Policies
+```powershell
+kubectl get networkpolicies -n interna
+kubectl describe networkpolicy allow-dmz-to-backend -n interna
+```
+
+## 🧪 Testing de Conectividad
+
+### Test DMZ → Backend
+```powershell
+kubectl run test --image=curlimages/curl --rm -i -n dmz -- `
+  curl -v http://spree-backend.interna.svc.cluster.local:3000/up
+```
+
+### Test Backend → PostgreSQL
+```powershell
+kubectl exec -n interna deployment/spree-backend -- `
+  nc -zv postgres.interna.svc.cluster.local 5432
+```
+
+### Test Backend → Redis
+```powershell
+kubectl exec -n interna deployment/spree-backend -- `
+  nc -zv redis.interna.svc.cluster.local 6379
+```
+
+## 🎯 Conceptos Clave Implementados
+
+### Sistemas Distribuidos
+- [x] Arquitectura multinodo
+- [x] Separación de concerns (frontend/backend)
+- [x] Service discovery (DNS de K8s)
+- [x] Load balancing (Service ClusterIP)
+- [x] Health checks (readiness/liveness probes)
+- [x] Fault tolerance (múltiples réplicas)
+
+### Seguridad
+- [x] Network segmentation (namespaces)
+- [x] Network policies (firewall de pods)
+- [x] Secrets management
+- [x] Trusted hosts validation
+- [x] Zero-trust networking
+
+### DevOps
+- [x] Infrastructure as Code (YAML)
+- [x] Configuration management (ConfigMaps)
+- [x] Container orchestration (K8s)
+- [x] Service mesh básico (proxy reverso)
+
+## 🚨 Troubleshooting
+
+### Problema: 502 Bad Gateway
+**Solución**: Verificar que backend esté corriendo
+```powershell
+kubectl get pods -n interna
+kubectl logs -n interna -l app=spree-backend --tail=50
+```
+
+### Problema: "Blocked host" en logs
+**Solución**: Reconstruir imagen con nuevo `hosts.rb`
+```powershell
+cd spree-app
+docker build -t spree-custom:latest .
+kubectl rollout restart deployment spree-backend -n interna
+```
+
+### Problema: Sesiones no persisten
+**Solución**: Aplicar nuevo ConfigMap de Nginx
+```powershell
+kubectl apply -f frontend-configmap.yaml
+kubectl rollout restart deployment spree-frontend -n dmz
+```
+
+### ⚠️ Problema: No se ven productos (MUY COMÚN)
+**Causa**: Los productos están en estado "draft" en lugar de "active"
+
+**Solución Rápida**:
+```powershell
+.\admin-setup.ps1
+# Seleccionar opción 3: "Hacer productos visibles (available)"
+```
+
+**Ver guía completa**: **[PRODUCTOS-NO-VISIBLES-FIX.md](./PRODUCTOS-NO-VISIBLES-FIX.md)**
+
+### Para más detalles
+📖 Ver: **[SOLUCION-TROUBLESHOOTING.md](./SOLUCION-TROUBLESHOOTING.md)**
+
+## 📚 Recursos Adicionales
+
+- **Spree Guides**: https://docs.spreecommerce.org/
+- **Kubernetes Docs**: https://kubernetes.io/docs/
+- **Network Policies**: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- **Rails Production**: https://guides.rubyonrails.org/configuring.html
+
+## 👨‍💻 Desarrollo
+
+### Reconstruir imagen
+```powershell
+cd spree-app
+docker build -t spree-custom:latest .
+```
+
+### Aplicar cambios en K8s
+```powershell
+kubectl apply -f <archivo>.yaml
+```
+
+### Hot-reload de ConfigMaps
+```powershell
+# Editar ConfigMap
+kubectl edit configmap spree-frontend-config -n dmz
+
+# Reiniciar para aplicar
+kubectl rollout restart deployment spree-frontend -n dmz
+```
+
+## 🎓 Entrega del Proyecto
+
+### Checklist para Entrega
+- [ ] Cluster K8s multinodo funcionando
+- [ ] 2 namespaces (dmz, interna) con labels
+- [ ] Network Policies aplicadas y documentadas
+- [ ] Backend accesible desde frontend
+- [ ] Admin panel funcional
+- [ ] Productos visibles en storefront
+- [ ] Logs sin errores críticos
+- [ ] Documentación completa (este README + ARQUITECTURA.md)
+- [ ] Scripts de automatización funcionando
+- [ ] Diagrama de arquitectura incluido
+
+### Evidencias a Mostrar
+1. **Arquitectura**: Diagrama y explicación de componentes
+2. **Namespaces**: `kubectl get namespaces` con labels
+3. **Network Policies**: `kubectl get networkpolicies -A`
+4. **Pods distribuidos**: `kubectl get pods -A -o wide` mostrando nodos
+5. **Acceso funcional**: Screenshots de storefront y admin
+6. **Logs limpios**: Sin errores de conectividad
+7. **Comandos de verificación**: Mostrar tests de conectividad
+
+### Puntos Destacables
+- ✅ Implementación de DMZ real con segmentación de red
+- ✅ Network Policies de tipo ingress Y egress
+- ✅ Arquitectura de 3 capas (frontend, backend, data)
+- ✅ Node affinity con labels personalizados
+- ✅ Configuración de producción de Rails
+- ✅ Health checks configurados correctamente
+- ✅ Automatización con scripts PowerShell
+
+## 📝 Notas Finales
+
+Este proyecto demuestra:
+1. **Arquitectura distribuida** real con separación de concerns
+2. **Seguridad de red** con políticas estrictas
+3. **Alta disponibilidad** con múltiples réplicas
+4. **Buenas prácticas** de K8s (ConfigMaps, Secrets, Probes)
+5. **Documentación completa** y scripts de automatización
+
+¡Ideal para curso de Sistemas Distribuidos! 🎯
+
+---
+
+## 🆘 Soporte
+
+Si encuentras problemas:
+1. Ejecuta `.\diagnostico.ps1` para recopilar información
+2. Revisa logs con los comandos de arriba
+3. Consulta [SOLUCION-TROUBLESHOOTING.md](./SOLUCION-TROUBLESHOOTING.md)
+4. Verifica Network Policies con `kubectl describe`
+
+---
+
+**Desarrollado para**: Curso de Sistemas Distribuidos  
+**Tecnologías**: Kubernetes, Spree Commerce, Rails, PostgreSQL, Redis, Nginx  
+**Fecha**: 2024
+
+🚀 **¡Buena suerte con tu entrega!**

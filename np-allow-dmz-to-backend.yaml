@@ -1,0 +1,52 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dmz-to-backend
+  namespace: interna
+spec:
+  podSelector:
+    matchLabels:
+      app: spree-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: dmz # ya la tiene tu ns dmz
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# IMPORTANTE: Permitir que DMZ pueda hacer consultas DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dmz-egress-to-interna
+  namespace: dmz
+spec:
+  podSelector:
+    matchLabels:
+      app: spree-frontend
+  policyTypes:
+    - Egress
+  egress:
+    # Permitir acceso al backend en namespace interna
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: interna
+        - podSelector:
+            matchLabels:
+              app: spree-backend
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Permitir DNS (kube-system)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53

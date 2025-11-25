@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: interna-default-deny
+  namespace: interna
+spec:
+  podSelector: {}   # todos los pods en 'interna'
+  policyTypes:
+    - Ingress

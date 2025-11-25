@@ -1,0 +1,29 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spree-migrate
+  namespace: interna
+spec:
+  template:
+    spec:
+      containers:
+        - command: ["bin/rails", "db:migrate"]
+          env:
+            - name: RAILS_ENV
+              value: production
+            - name: DATABASE_URL
+              value: postgres://spreeuser:spreepass@postgres.interna.svc.cluster.local:5432/spreedb
+            - name: REDIS_URL
+              value: redis://redis.interna.svc.cluster.local:6379/0
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  key: SECRET_KEY_BASE
+                  name: spree-secret
+          image: spree-custom:latest
+          imagePullPolicy: IfNotPresent
+          name: spree-migrate
+      nodeSelector:
+        zona: interna
+      restartPolicy: Never
