@@ -5,8 +5,9 @@ metadata:
   namespace: dmz
 data:
   default.conf: |
+    # Upstream con IP directa del backend service (workaround DNS)
     upstream backend {
-      server spree-backend.interna.svc.cluster.local:3000;
+      server 10.101.151.58:3000;
       keepalive 32;
     }
 

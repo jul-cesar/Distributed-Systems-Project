@@ -2,6 +2,59 @@
 
 Plataforma e-commerce completa desplegada en Kubernetes multinodo con arquitectura distribuida y segmentación de red.
 
+---
+
+## ⚡ ¿PRIMERA VEZ? → Lee: **[LEEME-PRIMERO.md](./LEEME-PRIMERO.md)**
+
+**Si tú y tus compañeros van a estudiar este proyecto desde cero**, ese documento es tu punto de partida. Todo lo demás está enlazado desde ahí.
+
+---
+
+## 🎯 ¿Primera vez? ¡Empieza aquí!
+
+Si tú y tus compañeros van a estudiar este proyecto desde cero, sigan este orden:
+
+### 📘 Para Setup Rápido
+
+1. **📚 [INICIO-RAPIDO.md](./INICIO-RAPIDO.md)** ← **EMPIEZA AQUÍ**
+   - Guía paso a paso para levantar todo el proyecto
+   - Setup completo en ~30 minutos
+   - Comandos detallados y verificación
+
+2. **🤖 Script automático**: `.\setup-completo.ps1`
+   - Automatiza TODOS los pasos del setup
+   - Perfecto si quieres ir directo al grano
+   - Ejecutar: `.\setup-completo.ps1`
+
+3. **✅ [VERIFICACION.md](./VERIFICACION.md)**
+   - Checklist para verificar que todo funcione
+   - Comandos de diagnóstico
+   - Troubleshooting común
+
+### 📖 Para Entender el Proyecto
+
+4. **📖 [GUIA-ESTUDIO.md](./GUIA-ESTUDIO.md)** ← **Leer después del setup**
+   - Explicación de conceptos teóricos
+   - Por qué funciona cada cosa
+   - Ejercicios prácticos
+   - Preguntas y respuestas
+
+5. **👥 [GUIA-GRUPO.md](./GUIA-GRUPO.md)** ← **Si estudian en equipo**
+   - Plan de estudio para grupos
+   - División de responsabilidades
+   - Experimentos sugeridos
+   - Preparación de demo
+
+### 📋 Para Evaluación
+
+6. **📋 [EVALUACION-FINAL.md](./EVALUACION-FINAL.md)**
+   - Rúbrica y puntaje del proyecto
+   - Comandos de demostración
+   - Evidencias necesarias
+   - Capturas recomendadas
+
+---
+
 ## 📋 Descripción del Proyecto
 
 Sistema distribuido que implementa:
