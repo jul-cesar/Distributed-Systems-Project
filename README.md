@@ -105,6 +105,58 @@ Una vez aplicadas las correcciones:
 | http://localhost:30080/api/v2 | 🔌 API |
 | http://localhost:30080/sidekiq | 📊 Monitor Jobs |
 
+### 🔌 Acceso desde una VM (cliente externo)
+
+Si vas a usar una máquina cliente separada (por ejemplo una VM en VirtualBox), puedes acceder al frontend de dos maneras:
+
+- Usando la IP del host que corre el cluster (modo puente/bridged) y el NodePort publicado (30080):
+
+  http://<IP_DEL_HOST>:30080
+
+  Asegúrate de:
+  - Que la VM tenga conectividad a la IP del host (bridged networking o reglas de NAT apropiadas).
+  - Que el port-forward/NodePort esté escuchando en 0.0.0.0 (por ejemplo `kubectl port-forward --address 0.0.0.0 service/spree-frontend 30080:80 -n dmz`).
+  - Que el firewall de Windows permita conexiones entrantes al puerto 30080 (si aplica).
+
+- Alternativa (temporal): usar el túnel local que genera `kubectl port-forward` o herramientas de túnel mientras dure la demo.
+
+### 🔁 Replicación de PostgreSQL (master + réplicas)
+
+Se desplegó una configuración de PostgreSQL con StatefulSets: un master al que se restauró el dump original y dos réplicas de solo lectura (standby). Esto busca demostrar replicación y alta disponibilidad de la capa de datos.
+
+Comandos útiles para verificar el estado:
+
+```powershell
+# Ver pods del cluster de Postgres
+kubectl get pods -n interna -l app=postgres
+
+# Entrar al master y revisar clientes de replicación
+kubectl exec -it -n interna sts/postgres-master -- pg_isready
+kubectl exec -it -n interna sts/postgres-master -- psql -U postgres -d spreedb -c "SELECT * FROM pg_stat_replication;"
+
+# Revisar logs de una réplica (ej: postgres-slave-0)
+kubectl logs -n interna statefulset/postgres-slave -f
+```
+
+Notas y estado actual:
+- ✅ Se restauró el dump inicial en el master y los datos (productos, usuarios) están presentes.
+- ⚠️ Las réplicas arrancaron y los pods están en estado Running. En algunas ejecuciones el master todavía no mostraba filas en `pg_stat_replication` — esto puede requerir pequeños ajustes en el init container o en la configuración de recuperación (`recovery.conf` / `standby.signal`) dependiendo de la imagen/base utilizada.
+
+Si `pg_stat_replication` está vacío:
+- Verifica que los archivos de recuperación (`standby.signal` / `recovery.conf`) se hayan creado en la réplica.
+- Revisa que el `primary_conninfo` en la réplica apunte correctamente al servicio `postgres-master.interna.svc.cluster.local` y use las credenciales del usuario de replicación.
+- Revisa los logs de la réplica para errores de `pg_basebackup` o de conexión.
+
+Pequeñas acciones de reparación (ejemplos):
+
+```powershell
+# Forzar re-sincronización desde la réplica (si procede):
+kubectl delete pod -n interna statefulset/postgres-slave-0 --grace-period=0 --force
+# El init container debería volver a ejecutar el basebackup y crear el standby signal
+```
+
+Para entrega y demo: mostrar la restauración de datos en el master (consulta a `spree_products`) y luego, si la réplica aparece en `pg_stat_replication`, mostrar failover/read-scaling básico apuntando consultas de lectura a la service de lectura.
+
 ## 📁 Estructura del Proyecto
 
 ```

@@ -17,12 +17,14 @@
 **Puntaje obtenido**: ⚠️ **5/10 puntos**
 
 **Estado actual**:
+
 - ✅ CoreDNS básico funciona (resolución interna de K8s)
 - ✅ Ingress Controller instalado y funcionando
 - ✅ Subdominios configurados: `www.proyectosd.com`, `admin.proyectosd.com`, `api.proyectosd.com`
 - ⚠️ Resolución externa requiere modificar archivo hosts de Windows
 
 **Evidencia**:
+
 ```bash
 kubectl get ingress -n dmz
 # NAME            HOSTS                                           
@@ -30,10 +32,12 @@ kubectl get ingress -n dmz
 ```
 
 **Acceso**:
+
 - Ingress: `http://www.proyectosd.com:30704`
 - NodePort directo: `http://localhost:30080`
 
 **¿Cómo mejorar a 10/10?**
+
 - Configurar DNS externo con bind9 o dnsmasq en un contenedor
 - Configurar registros A apuntando a los nodos del cluster
 
@@ -44,6 +48,7 @@ kubectl get ingress -n dmz
 **Puntaje obtenido**: ✅ **10/10 puntos**
 
 **Implementación**:
+
 - ✅ Network Policies implementadas correctamente
 - ✅ Filtrado por rangos de IP entre namespaces
 - ✅ Control de puertos (3000, 5432, 6379, 80)
@@ -54,21 +59,22 @@ kubectl get ingress -n dmz
 
 1. **`interna-default-deny`** (namespace: interna)
    - Bloquea TODO el tráfico de entrada por defecto
-   
+
 2. **`allow-dmz-to-backend`** (namespace: interna)
    - Permite ingress desde DMZ al backend (puerto 3000)
-   
+
 3. **`allow-dmz-egress-to-interna`** (namespace: dmz)
    - Permite egress desde frontend hacia backend
    - Permite DNS (puerto 53)
-   
+
 4. **`allow-backend-to-postgres`** (namespace: interna)
    - Permite backend → PostgreSQL (puerto 5432)
-   
+
 5. **`allow-backend-to-redis`** (namespace: interna)
    - Permite backend → Redis (puerto 6379)
 
 **Evidencia**:
+
 ```bash
 kubectl get networkpolicies -A
 # NAMESPACE   NAME                           
@@ -80,6 +86,7 @@ kubectl get networkpolicies -A
 ```
 
 **Test de conectividad**:
+
 ```bash
 # Prueba desde DMZ → Backend
 kubectl run test --rm -i -n dmz --image=curlimages/curl -- \
@@ -96,6 +103,7 @@ kubectl run test --rm -i -n dmz --image=curlimages/curl -- \
 **Estado**: ✅ **Funciona correctamente con 3 nodos**
 
 **Evidencia**:
+
 ```bash
 kubectl get pods -n dmz -o wide -l app=spree-frontend
 
@@ -106,12 +114,14 @@ kubectl get pods -n dmz -o wide -l app=spree-frontend
 ```
 
 **Configuración**:
+
 - 3 réplicas de Nginx funcionando
 - Distribuidas en nodo `proyectosd-m02` (zona: dmz)
 - NodeSelector: `zona: dmz`
 - Load balancing automático por Service ClusterIP
 
 **Funcionalidades**:
+
 - ✅ Proxy reverso hacia backend
 - ✅ Preservación de cookies/sesiones
 - ✅ Routing: `/`, `/admin`, `/api`
@@ -126,6 +136,7 @@ kubectl get pods -n dmz -o wide -l app=spree-frontend
 **Estado**: ✅ **Funciona correctamente con 3 nodos**
 
 **Evidencia**:
+
 ```bash
 kubectl get pods -n interna -o wide -l app=spree-backend
 
@@ -136,12 +147,14 @@ kubectl get pods -n interna -o wide -l app=spree-backend
 ```
 
 **Configuración**:
+
 - 3 réplicas de Rails (Spree API) funcionando
 - Distribuidas en nodo `proyectosd-m03` (zona: interna)
 - NodeSelector: `zona: interna`
 - Load balancing automático por Service ClusterIP
 
 **Endpoints activos**:
+
 - ✅ `/` - Storefront
 - ✅ `/admin` - Panel administrativo
 - ✅ `/api/v2/storefront` - API pública
@@ -202,6 +215,7 @@ kubectl get pods -n interna -o wide -l app=spree-backend
 | Ingress Controller | ingress-nginx | 1 | proyectosd-m02 | ✅ Running |
 
 **Características de orquestación**:
+
 - ✅ Node affinity configurado (zona: dmz / interna)
 - ✅ Servicios ClusterIP para comunicación interna
 - ✅ NodePort para acceso externo
@@ -219,11 +233,13 @@ kubectl get pods -n interna -o wide -l app=spree-backend
 **Estado**: ✅ **Desacopla Front del Back usando broker de mensajería**
 
 **Implementación**:
+
 - ✅ Sidekiq configurado y funcionando
 - ✅ Redis como broker de mensajería
 - ✅ Jobs asíncronos activos
 
 **Evidencia**:
+
 ```bash
 kubectl exec -n interna deployment/spree-backend -- \
   bin/rails runner "puts 'Sidekiq: ' + (defined?(Sidekiq) ? 'OK' : 'NO'); \
@@ -234,17 +250,20 @@ kubectl exec -n interna deployment/spree-backend -- \
 ```
 
 **Jobs activos en Spree**:
+
 - `Spree::Products::TouchTaxonsJob` - Actualización de taxonomías
 - `Spree::Products::AutoMatchTaxonsJob` - Clasificación automática
 - Procesamiento de emails (future)
 - Generación de reportes (future)
 
 **Desacoplamiento**:
+
 - Frontend → Backend: Requests síncronos HTTP
 - Backend → Workers: Jobs asíncronos vía Redis
 - Backend no bloquea por tareas pesadas
 
 **Acceso al monitor**:
+
 - `http://localhost:30080/sidekiq`
 
 ---
@@ -266,6 +285,37 @@ kubectl exec -n interna deployment/spree-backend -- \
 
 ---
 
+## 🔁 Replicación PostgreSQL (estado y verificación)
+
+Se implementó una configuración de PostgreSQL con StatefulSets: un master al que se restauró el dump original y dos réplicas (standby) desplegadas como StatefulSet.
+
+Estado actual:
+
+- ✅ Dump restaurado en el master y datos verificados (productos, usuarios, etc.).
+- ⚠️ Réplicas desplegadas y pods en estado Running, pero en algunas ejecuciones el master aún no reportaba conexiones en `pg_stat_replication`.
+
+Comandos para demostrar replicación durante la entrega:
+
+```bash
+# Ver pods Postgres
+kubectl get pods -n interna -l app=postgres
+
+# En el master: comprobar clientes de replicación
+kubectl exec -it -n interna sts/postgres-master -- psql -U postgres -d spreedb -c "SELECT pid, client_addr, state, sync_state FROM pg_stat_replication;"
+
+# En una réplica: revisar logs y la presencia de standby signal
+kubectl logs -n interna statefulset/postgres-slave-0 -f
+kubectl exec -it -n interna pod/postgres-slave-0 -- ls -la /var/lib/postgresql/data
+```
+
+Notas y recomendaciones si `pg_stat_replication` está vacío:
+
+- Comprueba que la réplica creó el archivo `standby.signal` (Postgres >=12) o `recovery.conf` (imágenes antiguas).
+- Revisa que `primary_conninfo` apunte a `postgres-master.interna.svc.cluster.local` y que las credenciales del usuario de replicación sean correctas (secret aplicado).
+- Si es necesario, reinicia la réplica para forzar un nuevo `pg_basebackup` mediante la recreación del pod.
+
+Conclusión: La réplica y el master están desplegados y los datos fueron restaurados en el master; pendiente la verificación final de streaming replication (mostrar filas en `pg_stat_replication`) para evidenciar la replicación activa.
+
 ## ✅ FORTALEZAS DEL PROYECTO
 
 1. ✅ **Arquitectura distribuida real** con 3 nodos físicos
@@ -282,12 +332,15 @@ kubectl exec -n interna deployment/spree-backend -- \
 ## ⚠️ ÁREAS DE MEJORA (para 10/10 en DNS)
 
 ### Opción 1: DNS externo con bind9 (Recomendado para producción)
+
 Desplegar un pod con bind9 configurado para resolver `proyectosd.com`
 
 ### Opción 2: CoreDNS personalizado
+
 Modificar ConfigMap de CoreDNS para agregar registros personalizados
 
 ### Opción 3: MetalLB + DNS externo
+
 Instalar MetalLB para IPs externas y configurar DNS real
 
 **Para la demo**: El archivo hosts funciona perfectamente ✅
@@ -311,31 +364,36 @@ Instalar MetalLB para IPs externas y configurar DNS real
 
 ## 🚀 COMANDOS PARA DEMOSTRACIÓN
 
-### Verificar nodos y distribución:
+### Verificar nodos y distribución
+
 ```bash
 kubectl get nodes -o wide
 kubectl get pods -A -o wide
 ```
 
-### Verificar Network Policies:
+### Verificar Network Policies
+
 ```bash
 kubectl get networkpolicies -A
 kubectl describe networkpolicy interna-default-deny -n interna
 ```
 
-### Test de conectividad:
+### Test de conectividad
+
 ```bash
 kubectl run test --rm -i -n dmz --image=curlimages/curl -- \
   curl http://spree-backend.interna.svc.cluster.local:3000/up
 ```
 
-### Verificar Sidekiq:
+### Verificar Sidekiq
+
 ```bash
 kubectl exec -n interna deployment/spree-backend -- \
   bin/rails runner "puts Sidekiq.redis { |r| r.ping }"
 ```
 
-### Acceder a la aplicación:
+### Acceder a la aplicación
+
 ```
 http://localhost:30080               # Storefront
 http://localhost:30080/admin         # Admin panel
