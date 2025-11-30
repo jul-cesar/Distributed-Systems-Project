@@ -25,22 +25,17 @@ spec:
             - /bin/bash
             - -c
             - |
-              # Si ya existe data, no hacer nada
-              if [ -s /var/lib/postgresql/data/PG_VERSION ]; then
-                echo "Data directory already exists, skipping clone"
-                exit 0
-              fi
+              # Limpiar directorio de datos si existe
+              rm -rf /var/lib/postgresql/data/*
 
               # Esperar a que el master esté disponible
-              until pg_isready -h postgres-master-0.postgres-master.interna.svc.cluster.local -U spreeuser; do
-                echo "Waiting for master..."
-                sleep 5
-              done
+              echo "Waiting for master to be ready..."
+              sleep 20
 
               # Clonar datos del master usando pg_basebackup
               echo "Cloning data from master..."
               PGPASSWORD=replicator123 pg_basebackup \
-                -h postgres-master-0.postgres-master.interna.svc.cluster.local \
+                -h 10.100.204.80 \
                 -D /var/lib/postgresql/data \
                 -U replicator \
                 -X stream \
