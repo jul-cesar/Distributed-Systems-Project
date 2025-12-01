@@ -41,13 +41,26 @@ spec:
             # Permitir hosts (importante para evitar errores de host bloqueado)
             - name: TRUSTED_HOSTS
               value: "www.proyectosd.com,spree-frontend.dmz.svc.cluster.local,localhost,localhost:30080"
+            # Desactivar force_ssl en entornos sin HTTPS
+            - name: FORCE_SSL
+              value: "false"
             # URL pública para assets y URLs generadas
             - name: SPREE_FRONTEND_URL
               value: "http://localhost:30080"
+            # Configuración para generación correcta de URLs
+            - name: RAILS_HOST
+              value: "localhost"
+            - name: RAILS_PORT
+              value: "30080"
+            - name: RAILS_PROTOCOL
+              value: "http"
           readinessProbe:
             httpGet:
               path: /up
               port: 3000
+              httpHeaders:
+                - name: Host
+                  value: spree-backend.interna.svc.cluster.local
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
@@ -56,6 +69,9 @@ spec:
             httpGet:
               path: /up
               port: 3000
+              httpHeaders:
+                - name: Host
+                  value: spree-backend.interna.svc.cluster.local
             initialDelaySeconds: 90
             periodSeconds: 20
             timeoutSeconds: 5

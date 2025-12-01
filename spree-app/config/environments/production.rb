@@ -25,10 +25,11 @@ Rails.application.configure do
   config.active_storage.service = :local
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  config.assume_ssl = true
+  config.assume_ssl = ENV.fetch("ASSUME_SSL", "false").casecmp("true").zero?
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.force_ssl = true
+  # En local/minikube no usamos TLS; permitimos desactivar vía env.
+  config.force_ssl = ENV.fetch("FORCE_SSL", "false").casecmp("true").zero?
 
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
@@ -94,25 +95,34 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
-
+  # Configuración de URLs para Kubernetes/Minikube con NodePort
   # Fix for Render deployment
-  # this will set the store URL to the render external URL during db:seeds for the first time
   if ENV['RENDER_EXTERNAL_URL'].present?
     Rails.application.routes.default_url_options[:host] = ENV['RENDER_EXTERNAL_URL']
+  elsif ENV['RAILS_HOST'].present?
+    # Configuración para Kubernetes/Minikube con NodePort
+    Rails.application.routes.default_url_options = {
+      host: ENV.fetch('RAILS_HOST', 'localhost'),
+      port: ENV.fetch('RAILS_PORT', '30080').to_i,
+      protocol: ENV.fetch('RAILS_PROTOCOL', 'http')
+    }
+    
+    # También configurar para ActionMailer
+    config.action_mailer.default_url_options = {
+      host: ENV.fetch('RAILS_HOST', 'localhost'),
+      port: ENV.fetch('RAILS_PORT', '30080').to_i,
+      protocol: ENV.fetch('RAILS_PROTOCOL', 'http')
+    }
   end
   
   # KUBERNETES/MINIKUBE: Configuración para trabajar con túneles y puertos dinámicos
   # Permitir todos los hosts (más simple que configurar cada puerto del túnel)
   config.hosts.clear
-  
+
+
+  # Enable DNS rebinding protection and other `Host` header attacks.
+  # config.hosts = [
+  #   "example.com",     # Allow requests from example.com
   # Para CSRF, permitir cualquier origen cuando estamos detrás de proxy
   config.action_controller.forgery_protection_origin_check = false
   config.action_dispatch.cookies_same_site_protection = :lax

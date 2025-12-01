@@ -5,9 +5,9 @@ metadata:
   namespace: dmz
 data:
   default.conf: |
-    # Upstream con IP directa del backend service (workaround DNS)
+    # Upstream apuntando al Service de backend (DNS de Kubernetes)
     upstream backend {
-      server 10.101.151.58:3000;
+      server spree-backend.interna.svc.cluster.local:3000;
       keepalive 32;
     }
 
